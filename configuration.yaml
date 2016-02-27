@@ -1,0 +1,261 @@
+homeassistant:
+  # Name of the location where Home Assistant is running
+  name: Home
+  # Location required to calculate the time the sun rises and sets
+  latitude: 51.6470557
+  longitude: 0.0517716
+  # C for Celcius, F for Fahrenheit
+  temperature_unit: C
+  # Pick yours from here: http://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+  time_zone: Europe/London
+
+# Enables the frontend
+frontend:
+
+# View all events in a logbook
+logbook:
+
+# Allows you to issue voice commands from the frontend
+conversation:
+
+# Track the sun
+sun:
+
+# Enables support for tracking state changes over time.
+history:
+
+# Show links to resources in log and frontend
+introduction:
+
+# Discover some devices automatically
+discovery:
+
+media_player:
+  platform: plex
+
+# Checks for available updates
+updater:
+
+#device_tracker:
+#  platform: tplink
+#  host: 192.168.7.1
+#  username: admin
+#  password: *********
+#
+#  # If new discovered devices are tracked by default (default: yes)
+#  track_new_devices: yes
+#  # Seconds between each scan for new devices (default: 12)
+#  interval_seconds: 60
+#  # Seconds to wait till marking someone as not home after not being seen
+#  # (default: 180)
+#  consider_home: 180
+
+#device_tracker:
+#  platform: nmap_tracker
+#  hosts: 192.168.7.0/24
+#  home_interval: 5
+
+
+#switch:
+#  platform: rpi_gpio
+#  ports:
+#    17: gopro_button
+#    22: led1
+#  invert_logic: false
+#  platform: command_switch
+#  switches:
+#    GoPro:
+#      oncmd: "/home/pi/.homeassistant/gopro.py --on"
+#      offcmd: "/home/pi/gopro.py --off"
+
+switch:
+  - platform: rpi_gpio
+    ports:
+      17: led1
+    invert_logic: false
+  - platform: command_switch
+    switches:
+      GoPro:
+        oncmd: "/home/pi/.homeassistant/gopro.py --on"
+        offcmd: "/home/pi/.homeassistant/gopro.py --off"
+
+
+binary_sensor:
+  platform: rpi_gpio
+  ports:
+    24: Doorbell
+    25: Door Open
+  pull_mode: "UP"
+  bouncetime: 50
+  invert_logic: true
+
+
+
+input_boolean:
+  cam_on:
+    name: Camera is running
+    initial: off
+    icon: mdi:camera-party-mode
+
+  cam_stop_request:
+    name: Stop Camera if door is shut 
+    initial: off
+
+   
+
+
+group:
+  camera:
+    name: Camera control
+    entities:
+       - input_boolean.cam_on
+       - switch.gopro
+       - script.start_cam
+       - script.cam_record
+       - script.stop_cam
+
+
+
+
+script:
+  start_cam:
+     alias: Start Camera
+     sequence:
+       - alias: Turn GoPro on
+         service: switch.turn_on
+         data:
+            entity_id: switch.gopro
+       - alias: 3--Set running variable on
+         service: input_boolean.turn_on
+         data:
+            entity_id: input_boolean.cam_on
+       - alias: Record Video
+         service: script.turn_on
+         data:
+            entity_id: script.cam_record
+
+
+  cam_record:
+     alias: Camera Recording 20s
+     sequence:
+       - delay:
+            seconds: 20
+       - alias: request cam off if door not open
+         service: input_boolean.toggle
+         data:
+            entity_id: input_boolean.cam_stop_request
+
+  stop_cam:
+     alias: Stop Camera
+     sequence:
+       - alias: Turn GoPro off
+         service: switch.turn_off
+         data:
+            entity_id: switch.gopro
+       - alias: 8--set running variable off
+         service: input_boolean.turn_off
+         data:
+            entity_id: input_boolean.cam_on
+
+
+
+
+
+automation 5:
+  -alias: Turn off if door shut
+  trigger:
+    platform: state
+    entity_id: input_boolean.cam_stop_request
+#  condition:
+#    - platform: state
+#      entity_id: binary_sensor.door_open
+#      state: 'off'
+  action:
+    service: script.turn_on
+    entity_id: script.stop_cam
+
+automation 6:
+  -alias: 'Front Door Bell'
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.doorbell
+      state: 'on'
+  action:
+    service: script.turn_on
+    entity_id: script.start_cam
+
+automation 7:
+  -alias: 'Front Door Opened Reed Switch'
+  # Door opened - start cam if not already running
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.door_open
+      state: 'on'
+  condition:
+    - platform: state
+      entity_id: input_boolean.cam_on
+      state: 'off'
+  action:
+    service: script.turn_on
+    entity_id: script.start_cam
+#
+#  -alias: 'Front Door Closed Reed Switch'
+#  trigger:
+#    - platform: state
+#      entity_id: binary_sensor.door_open
+#      state: 'off'
+#  condition:
+#    - platform: state
+#      entity_id: input_boolean.cam_on
+#      state: 'on'
+#  action:
+#    service: script.turn_on
+#    entity_id: script.stop_cam
+
+
+
+
+
+
+
+
+automation:
+  trigger:
+    platform: sun
+    event: sunset
+    offset: "-01:00:00"
+
+  action:
+    service: light.turn_on
+    entity_id: light.Anglepoise
+
+automation 2:
+  trigger:
+    platform: time
+    after: '22:00:00'
+
+  action:
+    service: light.turn_off
+    entity_id: light.Anglepoise
+
+automation 3:
+  trigger:
+    platform: time
+    after: '06:30:00'
+
+  action:
+    service: light.turn_on
+    entity_id: light.Anglepoise
+
+automation 4:
+  trigger:
+    platform: time
+    after: '09:00:00'
+
+  action:
+    service: light.turn_off
+    entity_id: light.Anglepoise
+
+
+
+
